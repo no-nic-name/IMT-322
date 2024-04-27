@@ -4,7 +4,7 @@ int saldo = 0;
 #define PRECIO1  2
 #define PRECIO2  5
 #define PRECIO3  7
-#define BR       9600
+#define BR       9600    // se uso una placa arduino uno 
 #define SERVIR1  5000
 #define SERVIR2  4000
 #define SERVIR3  6000
@@ -45,8 +45,9 @@ void loop() {
   delay(DELAY);
 
   
-  while (Serial.available() == 0) {}
+  while (Serial.available() == 0) {
   int opcion = Serial.parseInt();
+  }
   if (opcion >= 1 && opcion <= 3) {
     int precio_bebida = 0;
     switch(opcion) {
@@ -90,5 +91,9 @@ void loop() {
   } else {
     Serial.println("Opción inválida.");
   }
-  
+  if (ss && digitalRead(BUTTON) == LOW) {
+    Serial.println("Retire su soda. Gracias por su compra.");
+    ss = false;
+    delay(DELAY); 
+  }
 }
