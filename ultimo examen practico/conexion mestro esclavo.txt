@@ -1,0 +1,95 @@
+import RPi.GPIO as GPIO
+import time
+import serial
+
+# Configuración de los pines GPIO
+LED_CERRADO = 17
+LED_ABIERTO = 27
+LED_BLOQUEADO = 22
+PULSADOR_CERRADO = 23
+PULSADOR_ABIERTO = 24
+PULSADOR_BLOQUEADO = 25
+
+# Configurar los pines GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(LED_CERRADO, GPIO.OUT)
+GPIO.setup(LED_ABIERTO, GPIO.OUT)
+GPIO.setup(LED_BLOQUEADO, GPIO.OUT)
+GPIO.setup(PULSADOR_CERRADO, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(PULSADOR_ABIERTO, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+GPIO.setup(PULSADOR_BLOQUEADO, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+
+# Estados de la puerta
+CERRADO = "CERRADO"
+ABIERTO = "ABIERTO"
+BLOQUEADO = "BLOQUEADO"
+estado = ABIERTO
+
+# Contraseña para desbloquear la puerta
+CONTRASEÑA_CORRECTA = "1234"
+
+# Tiempo de debounce en milisegundos
+DEBOUNCE_DELAY = 200  # 200 ms
+
+# Últimos tiempos de lectura de los pulsadores
+ultimo_tiempo_cerrado = 0
+ultimo_tiempo_abierto = 0
+ultimo_tiempo_bloqueado = 0
+
+# Inicializar la comunicación serial con el Arduino
+ser = serial.Serial('/dev/serial0', 9600)  # /dev/serial0 se refiere a UART en Raspberry Pi
+
+# Función para actualizar el estado de los LEDs
+def actualizar_leds():
+    GPIO.output(LED_CERRADO, estado == CERRADO)
+    GPIO.output(LED_ABIERTO, estado == ABIERTO)
+    GPIO.output(LED_BLOQUEADO, estado == BLOQUEADO)
+    ser.write((estado + '\n').encode())  # Enviar el estado al Arduino
+
+# Función para manejar la entrada de la contraseña
+def ingresar_contraseña():
+    print("Ingrese la contraseña para desbloquear:")
+    contraseña = input().strip()
+    if contraseña == CONTRASEÑA_CORRECTA:
+        print("Contraseña correcta. Puerta desbloqueada." )
+        print("Puerta cerrada")
+        return True
+    else:
+        print("Contraseña incorrecta.")
+        return False
+
+try:
+    actualizar_leds()  # Asegura que los LEDs reflejen el estado inicial
+    print(f"Estado inicial: {estado}")
+
+    while True:
+        tiempo_actual = time.time() * 1000  # Obtener el tiempo actual en milisegundos
+
+        if estado != BLOQUEADO:
+            if GPIO.input(PULSADOR_CERRADO) == GPIO.LOW and (tiempo_actual - ultimo_tiempo_cerrado) > DEBOUNCE_DELAY:
+                estado = CERRADO
+                actualizar_leds()
+                ultimo_tiempo_cerrado = tiempo_actual
+
+            if GPIO.input(PULSADOR_ABIERTO) == GPIO.LOW and (tiempo_actual - ultimo_tiempo_abierto) > DEBOUNCE_DELAY:
+                estado = ABIERTO
+                actualizar_leds()
+                ultimo_tiempo_abierto = tiempo_actual
+
+            if GPIO.input(PULSADOR_BLOQUEADO) == GPIO.LOW and (tiempo_actual - ultimo_tiempo_bloqueado) > DEBOUNCE_DELAY:
+                estado = BLOQUEADO
+                actualizar_leds()
+                ultimo_tiempo_bloqueado = tiempo_actual
+        else:
+            if ingresar_contraseña():
+                estado = CERRADO
+                actualizar_leds()
+
+        time.sleep(0.01)  # Pequeño delay para evitar sobrecargar la CPU
+
+except KeyboardInterrupt:
+    print("Saliendo...")
+finally:
+    GPIO.cleanup()
+    ser.close()
+    print("Limpieza de GPIO y salida.")
